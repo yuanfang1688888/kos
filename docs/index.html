@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>kos - 下载安装</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container {
+            max-width: 400px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+        }
+        .app-icon {
+            width: 100px;
+            height: 100px;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            border-radius: 22px;
+            margin: 0 auto 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 40px;
+            color: white;
+            font-weight: bold;
+        }
+        .app-name {
+            font-size: 24px;
+            font-weight: 600;
+            text-align: center;
+            color: #333;
+        }
+        .app-version {
+            text-align: center;
+            color: #888;
+            margin: 5px 0 20px;
+        }
+        .download-btn {
+            display: block;
+            width: 100%;
+            padding: 15px;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            text-align: center;
+            text-decoration: none;
+            border-radius: 12px;
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 15px;
+            transition: transform 0.2s;
+        }
+        .download-btn:active { transform: scale(0.98); }
+        .section-title {
+            font-size: 16px;
+            font-weight: 600;
+            color: #333;
+            margin: 25px 0 15px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #eee;
+        }
+        .step {
+            display: flex;
+            margin-bottom: 15px;
+        }
+        .step-num {
+            width: 24px;
+            height: 24px;
+            background: #667eea;
+            color: white;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            font-weight: 600;
+            flex-shrink: 0;
+            margin-right: 12px;
+        }
+        .step-text {
+            color: #555;
+            line-height: 1.5;
+            font-size: 14px;
+        }
+        .step-text a {
+            color: #667eea;
+        }
+        .tool-list {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-top: 15px;
+        }
+        .tool-item {
+            padding: 12px;
+            background: #f5f5f5;
+            border-radius: 10px;
+            text-align: center;
+            text-decoration: none;
+            color: #333;
+            font-size: 13px;
+        }
+        .tool-item:active { background: #eee; }
+        .note {
+            background: #fff3cd;
+            border-radius: 10px;
+            padding: 12px;
+            font-size: 13px;
+            color: #856404;
+            margin-top: 20px;
+        }
+        .footer {
+            text-align: center;
+            color: rgba(255,255,255,0.7);
+            font-size: 12px;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="app-icon">K</div>
+        <div class="app-name">kos</div>
+        <div class="app-version">版本 1.0 | iOS 16.0+</div>
+        
+        <a href="https://github.com/yuanfang1688888/kos/releases/latest/download/kos.ipa" class="download-btn" id="downloadBtn">
+            📥 下载 IPA
+        </a>
+        
+        <div class="section-title">📱 安装步骤</div>
+        
+        <div class="step">
+            <div class="step-num">1</div>
+            <div class="step-text">点击上方按钮下载 IPA 文件到电脑</div>
+        </div>
+        <div class="step">
+            <div class="step-num">2</div>
+            <div class="step-text">在电脑上安装签名工具（任选一个）</div>
+        </div>
+        <div class="step">
+            <div class="step-num">3</div>
+            <div class="step-text">用数据线连接手机和电脑</div>
+        </div>
+        <div class="step">
+            <div class="step-num">4</div>
+            <div class="step-text">用签名工具打开 IPA，输入任意 Apple ID 完成安装</div>
+        </div>
+        
+        <div class="section-title">🔧 推荐工具</div>
+        <div class="tool-list">
+            <a href="https://sideloadly.io" target="_blank" class="tool-item">
+                💻 Sideloadly<br><small>Win/Mac</small>
+            </a>
+            <a href="https://altstore.io" target="_blank" class="tool-item">
+                📲 AltStore<br><small>Win/Mac</small>
+            </a>
+            <a href="https://www.i4.cn" target="_blank" class="tool-item">
+                🍎 爱思助手<br><small>Windows</small>
+            </a>
+            <a href="https://ios222.com" target="_blank" class="tool-item">
+                🐸 牛蛙助手<br><small>Windows</small>
+            </a>
+        </div>
+        
+        <div class="note">
+            ⚠️ 使用免费 Apple ID 签名的应用每 7 天需要重新安装。如果手机已安装 TrollStore，可直接安装永不过期。
+        </div>
+    </div>
+    
+    <div class="footer">
+        Powered by GitHub Pages · 完全免费托管
+    </div>
+
+    <script>
+        // 自动获取最新版本下载链接
+        fetch('https://api.github.com/repos/yuanfang1688888/kos/releases/latest')
+            .then(r => r.json())
+            .then(data => {
+                if (data.assets && data.assets.length > 0) {
+                    const ipa = data.assets.find(a => a.name.endsWith('.ipa'));
+                    if (ipa) {
+                        document.getElementById('downloadBtn').href = ipa.browser_download_url;
+                    }
+                }
+                if (data.tag_name) {
+                    document.querySelector('.app-version').textContent = 
+                        `版本 ${data.tag_name} | iOS 16.0+`;
+                }
+            })
+            .catch(() => {});
+    </script>
+</body>
+</html>
