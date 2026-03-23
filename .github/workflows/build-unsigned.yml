@@ -93,6 +93,41 @@ jobs:
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+    # ========== 蒲公英分发 ==========
+    - name: 上传到蒲公英
+      if: env.PGYER_API_KEY != ''
+      env:
+        PGYER_API_KEY: ${{ secrets.PGYER_API_KEY }}
+      run: |
+        if [ -z "$PGYER_API_KEY" ]; then
+          echo "未配置 PGYER_API_KEY，跳过蒲公英上传"
+          exit 0
+        fi
+        echo ">>> 正在上传到蒲公英..."
+        RESPONSE=$(curl -sS \
+          -F "file=@build/${IPA_NAME}" \
+          -F "_api_key=${PGYER_API_KEY}" \
+          -F "buildUpdateDescription=自动构建 v${VERSION}" \
+          https://www.pgyer.com/apiv2/app/upload)
+        
+        echo "$RESPONSE" | python3 -m json.tool 2>/dev/null || echo "$RESPONSE"
+        
+        BUILD_KEY=$(echo "$RESPONSE" | python3 -c "import sys,json;d=json.load(sys.stdin);print(d.get('data',{}).get('buildKey',''))" 2>/dev/null || echo "")
+        BUILD_QRCODE=$(echo "$RESPONSE" | python3 -c "import sys,json;d=json.load(sys.stdin);print(d.get('data',{}).get('buildQRCodeURL',''))" 2>/dev/null || echo "")
+        
+        if [ -n "$BUILD_KEY" ]; then
+          echo "PGYER_URL=https://www.pgyer.com/${BUILD_KEY}" >> $GITHUB_ENV
+          echo "PGYER_QRCODE=${BUILD_QRCODE}" >> $GITHUB_ENV
+          echo ""
+          echo "============================================"
+          echo "  蒲公英上传成功!"
+          echo "  下载页: https://www.pgyer.com/${BUILD_KEY}"
+          echo "  二维码: ${BUILD_QRCODE}"
+          echo "============================================"
+        else
+          echo "蒲公英上传可能失败，请检查 API Key"
+        fi
+
     - name: 上传 Artifact 备份
       uses: actions/upload-artifact@v4
       with:
@@ -103,12 +138,13 @@ jobs:
     - name: 构建完成
       run: |
         echo "============================================"
-        echo "  免签构建 + 免费分发成功!"
+        echo "  免签构建 + 分发成功!"
         echo ""
         echo "  版本: ${{ env.VERSION }}"
-        echo "  下载: https://github.com/${{ github.repository }}/releases/latest"
+        echo "  GitHub: https://github.com/${{ github.repository }}/releases/latest"
+        echo "  蒲公英: ${{ env.PGYER_URL }}"
         echo ""
-        echo "  分享这个链接给用户即可下载安装"
+        echo "  分享链接给用户即可下载安装"
         echo "============================================"
         echo "  - Sideloadly: https://sideloadly.io"
         echo "  - TrollStore (支持的 iOS 版本)"
