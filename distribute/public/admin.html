@@ -1,0 +1,492 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>kos 分发平台 - 管理后台</title>
+  <style>
+    :root{--primary:#667eea;--primary-dark:#5a6fd6;--bg:#f0f2f5;--card:#fff;--text:#333;--text-light:#888;--border:#e8e8e8;--success:#52c41a;--danger:#ff4d4f;--warning:#faad14}
+    *{margin:0;padding:0;box-sizing:border-box}
+    body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
+
+    /* 登录页 */
+    .login-wrap{display:flex;align-items:center;justify-content:center;min-height:100vh;background:linear-gradient(135deg,#667eea,#764ba2)}
+    .login-box{background:#fff;border-radius:16px;padding:40px;width:360px;box-shadow:0 10px 40px rgba(0,0,0,.2)}
+    .login-box h2{text-align:center;margin-bottom:24px;color:var(--primary)}
+    .login-box input{width:100%;padding:12px 16px;border:1px solid var(--border);border-radius:8px;font-size:15px;margin-bottom:16px;outline:none;transition:border .3s}
+    .login-box input:focus{border-color:var(--primary)}
+    .login-box button{width:100%;padding:12px;background:linear-gradient(135deg,#667eea,#764ba2);color:#fff;border:none;border-radius:8px;font-size:16px;font-weight:600;cursor:pointer}
+    .login-box button:hover{opacity:.9}
+    .login-error{color:var(--danger);font-size:13px;text-align:center;margin-top:8px;display:none}
+
+    /* 布局 */
+    .app-wrap{display:none}
+    .header{background:#fff;padding:0 24px;height:56px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border);position:sticky;top:0;z-index:100}
+    .header h1{font-size:18px;background:linear-gradient(135deg,#667eea,#764ba2);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+    .header-right{display:flex;align-items:center;gap:12px}
+    .header-right span{color:var(--text-light);font-size:13px}
+    .header-right button{padding:6px 12px;border:1px solid var(--border);background:#fff;border-radius:6px;cursor:pointer;font-size:13px}
+    .header-right button:hover{border-color:var(--danger);color:var(--danger)}
+
+    .content{max-width:1200px;margin:0 auto;padding:24px}
+
+    /* 统计卡 */
+    .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px;margin-bottom:24px}
+    .stat-card{background:var(--card);border-radius:12px;padding:20px;box-shadow:0 1px 3px rgba(0,0,0,.06)}
+    .stat-card .label{font-size:13px;color:var(--text-light)}
+    .stat-card .value{font-size:28px;font-weight:700;margin-top:4px}
+    .stat-card:nth-child(1) .value{color:#667eea}
+    .stat-card:nth-child(2) .value{color:#52c41a}
+    .stat-card:nth-child(3) .value{color:#faad14}
+
+    /* 操作栏 */
+    .toolbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px}
+    .toolbar h2{font-size:18px}
+    .btn-primary{padding:10px 20px;background:linear-gradient(135deg,#667eea,#764ba2);color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer}
+    .btn-primary:hover{opacity:.9}
+
+    /* 应用列表 */
+    .app-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:16px}
+    .app-item{background:var(--card);border-radius:12px;padding:20px;box-shadow:0 1px 3px rgba(0,0,0,.06);transition:box-shadow .3s}
+    .app-item:hover{box-shadow:0 4px 12px rgba(0,0,0,.1)}
+    .app-top{display:flex;gap:14px;margin-bottom:14px}
+    .app-icon{width:56px;height:56px;background:linear-gradient(135deg,#667eea,#764ba2);border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:22px;color:#fff;font-weight:700;flex-shrink:0}
+    .app-info{flex:1;min-width:0}
+    .app-info h3{font-size:16px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .app-info .meta{font-size:12px;color:var(--text-light);margin-top:4px}
+    .app-info .meta span{margin-right:8px}
+    .app-actions{display:flex;gap:8px;flex-wrap:wrap}
+    .app-actions button,.app-actions a{padding:6px 12px;border-radius:6px;font-size:12px;cursor:pointer;text-decoration:none;border:1px solid var(--border);background:#fff;color:var(--text)}
+    .app-actions button:hover,.app-actions a:hover{border-color:var(--primary);color:var(--primary)}
+    .app-actions .btn-del{color:var(--danger);border-color:var(--danger)}
+    .app-actions .btn-del:hover{background:var(--danger);color:#fff}
+    .qr-mini{width:100px;height:100px;border-radius:8px;border:1px solid var(--border)}
+    .app-bottom{display:flex;justify-content:space-between;align-items:flex-end;margin-top:12px}
+    .copy-link{display:flex;align-items:center;gap:6px;background:#f5f5f5;border-radius:6px;padding:6px 10px;font-size:12px;color:var(--text-light);cursor:pointer;max-width:200px}
+    .copy-link span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .copy-link:hover{background:#eee}
+
+    /* 上传弹窗 */
+    .modal-mask{display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.5);z-index:200;align-items:center;justify-content:center}
+    .modal-mask.active{display:flex}
+    .modal{background:#fff;border-radius:16px;padding:30px;width:480px;max-width:90vw;max-height:90vh;overflow-y:auto}
+    .modal h3{font-size:18px;margin-bottom:20px}
+    .modal label{display:block;font-size:13px;color:var(--text-light);margin-bottom:4px;margin-top:14px}
+    .modal input,.modal textarea,.modal select{width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:8px;font-size:14px;outline:none}
+    .modal input:focus,.modal textarea:focus{border-color:var(--primary)}
+    .modal textarea{height:80px;resize:vertical}
+    .modal-btns{display:flex;gap:10px;margin-top:24px;justify-content:flex-end}
+    .modal-btns button{padding:10px 20px;border-radius:8px;font-size:14px;cursor:pointer;border:none}
+    .btn-cancel{background:#f5f5f5;color:var(--text)}
+    .upload-area{border:2px dashed var(--border);border-radius:10px;padding:40px 20px;text-align:center;cursor:pointer;transition:border .3s;margin-top:10px}
+    .upload-area:hover{border-color:var(--primary)}
+    .upload-area.active{border-color:var(--primary);background:#f0f0ff}
+    .upload-area input{display:none}
+    .upload-area .icon{font-size:36px;margin-bottom:8px}
+    .upload-area .text{color:var(--text-light);font-size:13px}
+    .upload-area .name{color:var(--primary);font-size:14px;font-weight:600;margin-top:6px}
+    .progress{width:100%;height:4px;background:#eee;border-radius:2px;margin-top:12px;display:none}
+    .progress-bar{height:100%;background:linear-gradient(90deg,#667eea,#764ba2);border-radius:2px;transition:width .3s}
+
+    .empty{text-align:center;padding:60px 0;color:var(--text-light)}
+    .empty .icon{font-size:48px;margin-bottom:12px}
+
+    .toast{position:fixed;top:20px;right:20px;background:#333;color:#fff;padding:10px 20px;border-radius:8px;font-size:14px;z-index:999;display:none}
+    .toast.success{background:var(--success)}
+    .toast.error{background:var(--danger)}
+
+    @media(max-width:768px){.content{padding:16px}.app-list{grid-template-columns:1fr}.stats{grid-template-columns:1fr 1fr}}
+  </style>
+</head>
+<body>
+
+<!-- 登录页 -->
+<div class="login-wrap" id="loginPage">
+  <div class="login-box">
+    <h2>🚀 kos 分发平台</h2>
+    <input type="text" id="loginUser" placeholder="用户名" value="admin">
+    <input type="password" id="loginPass" placeholder="密码" value="">
+    <button onclick="doLogin()">登 录</button>
+    <div class="login-error" id="loginError"></div>
+  </div>
+</div>
+
+<!-- 管理面板 -->
+<div class="app-wrap" id="appPanel">
+  <div class="header">
+    <h1>🚀 kos 分发平台</h1>
+    <div class="header-right">
+      <span id="userName"></span>
+      <button onclick="doLogout()">退出登录</button>
+    </div>
+  </div>
+
+  <div class="content">
+    <!-- 统计 -->
+    <div class="stats">
+      <div class="stat-card">
+        <div class="label">📱 应用总数</div>
+        <div class="value" id="statApps">0</div>
+      </div>
+      <div class="stat-card">
+        <div class="label">📥 总下载量</div>
+        <div class="value" id="statDownloads">0</div>
+      </div>
+      <div class="stat-card">
+        <div class="label">📊 今日下载</div>
+        <div class="value" id="statToday">0</div>
+      </div>
+    </div>
+
+    <!-- 操作栏 -->
+    <div class="toolbar">
+      <h2>应用管理</h2>
+      <button class="btn-primary" onclick="showUploadModal()">📤 上传应用</button>
+    </div>
+
+    <!-- 应用列表 -->
+    <div class="app-list" id="appList"></div>
+    <div class="empty" id="emptyState" style="display:none">
+      <div class="icon">📦</div>
+      <div>暂无应用，点击上方按钮上传</div>
+    </div>
+  </div>
+</div>
+
+<!-- 上传弹窗 -->
+<div class="modal-mask" id="uploadModal">
+  <div class="modal">
+    <h3>📤 上传应用</h3>
+    
+    <div class="upload-area" id="uploadArea" onclick="document.getElementById('fileInput').click()">
+      <input type="file" id="fileInput" accept=".ipa,.apk" onchange="onFileSelect(this)">
+      <div class="icon">📁</div>
+      <div class="text">点击或拖拽 IPA/APK 文件到此处</div>
+      <div class="name" id="fileName"></div>
+    </div>
+    <div class="progress" id="uploadProgress"><div class="progress-bar" id="progressBar"></div></div>
+
+    <label>应用名称</label>
+    <input type="text" id="appName" placeholder="应用名称">
+
+    <label>版本号</label>
+    <input type="text" id="appVersion" placeholder="1.0.0" value="1.0">
+
+    <label>Build</label>
+    <input type="text" id="appBuild" placeholder="1" value="1">
+
+    <label>Bundle ID</label>
+    <input type="text" id="appBundleId" placeholder="com.example.app">
+
+    <label>应用简介</label>
+    <textarea id="appDesc" placeholder="应用简介（可选）"></textarea>
+
+    <label>更新日志</label>
+    <textarea id="appChangelog" placeholder="更新内容（可选）"></textarea>
+
+    <div class="modal-btns">
+      <button class="btn-cancel" onclick="hideUploadModal()">取消</button>
+      <button class="btn-primary" onclick="doUpload()" id="uploadBtn">上传</button>
+    </div>
+  </div>
+</div>
+
+<!-- 详情弹窗 -->
+<div class="modal-mask" id="detailModal">
+  <div class="modal">
+    <h3 id="detailTitle">应用详情</h3>
+    <div id="detailContent"></div>
+    <div class="modal-btns">
+      <button class="btn-cancel" onclick="hideDetailModal()">关闭</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const API = '';
+let token = localStorage.getItem('kos_token');
+let currentApps = [];
+
+// ========== 通用 ==========
+async function api(path, opts = {}) {
+  const headers = { ...(opts.headers || {}) };
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+  if (!(opts.body instanceof FormData)) headers['Content-Type'] = 'application/json';
+  
+  const res = await fetch(API + path, { ...opts, headers });
+  return res.json();
+}
+
+function toast(msg, type = '') {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className = 'toast ' + type;
+  el.style.display = 'block';
+  setTimeout(() => el.style.display = 'none', 2500);
+}
+
+function copyText(text) {
+  navigator.clipboard.writeText(text).then(() => toast('已复制', 'success'));
+}
+
+// ========== 登录 ==========
+async function doLogin() {
+  const username = document.getElementById('loginUser').value;
+  const password = document.getElementById('loginPass').value;
+  const res = await api('/api/login', {
+    method: 'POST',
+    body: JSON.stringify({ username, password })
+  });
+  if (res.code === 0) {
+    token = res.data.token;
+    localStorage.setItem('kos_token', token);
+    localStorage.setItem('kos_user', res.data.username);
+    showPanel();
+  } else {
+    document.getElementById('loginError').textContent = res.message;
+    document.getElementById('loginError').style.display = 'block';
+  }
+}
+
+function doLogout() {
+  token = null;
+  localStorage.removeItem('kos_token');
+  localStorage.removeItem('kos_user');
+  document.getElementById('loginPage').style.display = 'flex';
+  document.getElementById('appPanel').style.display = 'none';
+}
+
+function showPanel() {
+  document.getElementById('loginPage').style.display = 'none';
+  document.getElementById('appPanel').style.display = 'block';
+  document.getElementById('userName').textContent = localStorage.getItem('kos_user') || 'admin';
+  loadStats();
+  loadApps();
+}
+
+// ========== 数据加载 ==========
+async function loadStats() {
+  const res = await api('/api/stats');
+  if (res.code === 0) {
+    document.getElementById('statApps').textContent = res.data.totalApps;
+    document.getElementById('statDownloads').textContent = res.data.totalDownloads;
+    document.getElementById('statToday').textContent = res.data.todayDownloads;
+  }
+}
+
+async function loadApps() {
+  const res = await api('/api/apps?limit=100');
+  if (res.code === 0) {
+    currentApps = res.data.list;
+    renderApps(currentApps);
+  }
+}
+
+function renderApps(apps) {
+  const list = document.getElementById('appList');
+  const empty = document.getElementById('emptyState');
+  
+  if (apps.length === 0) {
+    list.innerHTML = '';
+    empty.style.display = 'block';
+    return;
+  }
+  empty.style.display = 'none';
+
+  list.innerHTML = apps.map(app => `
+    <div class="app-item">
+      <div class="app-top">
+        <div class="app-icon">${app.name.charAt(0).toUpperCase()}</div>
+        <div class="app-info">
+          <h3>${app.name}</h3>
+          <div class="meta">
+            <span>v${app.version}(${app.build_number})</span>
+            <span>${app.file_size_text}</span>
+            <span>${app.platform === 'ios' ? 'iOS' : 'Android'}</span>
+            <span>📥 ${app.download_count}</span>
+          </div>
+          <div class="meta"><span>${app.created_at}</span></div>
+        </div>
+      </div>
+      <div class="app-bottom">
+        <div>
+          <div class="copy-link" onclick="copyText('${app.download_url}')">
+            <span>${app.download_url}</span> 📋
+          </div>
+          <div class="app-actions" style="margin-top:8px">
+            <a href="${app.download_url}" target="_blank">🔗 下载页</a>
+            <button onclick="showDetail('${app.id}')">📋 详情</button>
+            <button onclick="deleteApp('${app.id}','${app.name}')" class="btn-del">🗑 删除</button>
+          </div>
+        </div>
+        <img src="${app.qrcode_url}" class="qr-mini" alt="二维码">
+      </div>
+    </div>
+  `).join('');
+}
+
+// ========== 上传 ==========
+let selectedFile = null;
+
+function showUploadModal() {
+  document.getElementById('uploadModal').classList.add('active');
+  selectedFile = null;
+  document.getElementById('fileName').textContent = '';
+  document.getElementById('fileInput').value = '';
+  document.getElementById('appName').value = '';
+  document.getElementById('appVersion').value = '1.0';
+  document.getElementById('appBuild').value = '1';
+  document.getElementById('appBundleId').value = '';
+  document.getElementById('appDesc').value = '';
+  document.getElementById('appChangelog').value = '';
+  document.getElementById('uploadProgress').style.display = 'none';
+}
+
+function hideUploadModal() {
+  document.getElementById('uploadModal').classList.remove('active');
+}
+
+function onFileSelect(input) {
+  if (input.files.length > 0) {
+    selectedFile = input.files[0];
+    document.getElementById('fileName').textContent = selectedFile.name;
+    document.getElementById('uploadArea').classList.add('active');
+    // 自动填充应用名
+    if (!document.getElementById('appName').value) {
+      document.getElementById('appName').value = selectedFile.name.replace(/\.(ipa|apk)$/i, '');
+    }
+  }
+}
+
+// 拖拽上传
+const uploadArea = document.getElementById('uploadArea');
+uploadArea.addEventListener('dragover', e => { e.preventDefault(); uploadArea.classList.add('active'); });
+uploadArea.addEventListener('dragleave', () => uploadArea.classList.remove('active'));
+uploadArea.addEventListener('drop', e => {
+  e.preventDefault();
+  const files = e.dataTransfer.files;
+  if (files.length > 0) {
+    selectedFile = files[0];
+    document.getElementById('fileName').textContent = selectedFile.name;
+    if (!document.getElementById('appName').value) {
+      document.getElementById('appName').value = selectedFile.name.replace(/\.(ipa|apk)$/i, '');
+    }
+  }
+});
+
+async function doUpload() {
+  if (!selectedFile) return toast('请选择文件', 'error');
+  
+  const btn = document.getElementById('uploadBtn');
+  btn.disabled = true;
+  btn.textContent = '上传中...';
+  document.getElementById('uploadProgress').style.display = 'block';
+
+  const formData = new FormData();
+  formData.append('file', selectedFile);
+  formData.append('name', document.getElementById('appName').value);
+  formData.append('version', document.getElementById('appVersion').value);
+  formData.append('build_number', document.getElementById('appBuild').value);
+  formData.append('bundle_id', document.getElementById('appBundleId').value);
+  formData.append('description', document.getElementById('appDesc').value);
+  formData.append('changelog', document.getElementById('appChangelog').value);
+
+  try {
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', API + '/api/apps/upload');
+    xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+    
+    xhr.upload.onprogress = (e) => {
+      if (e.lengthComputable) {
+        const pct = (e.loaded / e.total * 100).toFixed(0);
+        document.getElementById('progressBar').style.width = pct + '%';
+      }
+    };
+
+    xhr.onload = () => {
+      const res = JSON.parse(xhr.responseText);
+      btn.disabled = false;
+      btn.textContent = '上传';
+      if (res.code === 0) {
+        toast('上传成功！', 'success');
+        hideUploadModal();
+        loadStats();
+        loadApps();
+      } else {
+        toast(res.message || '上传失败', 'error');
+      }
+    };
+
+    xhr.onerror = () => {
+      btn.disabled = false;
+      btn.textContent = '上传';
+      toast('上传失败', 'error');
+    };
+
+    xhr.send(formData);
+  } catch (err) {
+    btn.disabled = false;
+    btn.textContent = '上传';
+    toast(err.message, 'error');
+  }
+}
+
+// ========== 详情 ==========
+function showDetail(id) {
+  const app = currentApps.find(a => a.id === id);
+  if (!app) return;
+  
+  document.getElementById('detailTitle').textContent = app.name;
+  document.getElementById('detailContent').innerHTML = `
+    <div style="text-align:center;margin:16px 0">
+      <img src="${app.qrcode_url}" style="width:180px;height:180px;border-radius:8px">
+      <div style="font-size:12px;color:#999;margin-top:6px">扫码访问下载页</div>
+    </div>
+    <table style="width:100%;font-size:14px;border-collapse:collapse">
+      <tr><td style="padding:8px;color:#888;width:80px">版本</td><td style="padding:8px">${app.version} (${app.build_number})</td></tr>
+      <tr><td style="padding:8px;color:#888">Bundle ID</td><td style="padding:8px">${app.bundle_id || '-'}</td></tr>
+      <tr><td style="padding:8px;color:#888">文件大小</td><td style="padding:8px">${app.file_size_text}</td></tr>
+      <tr><td style="padding:8px;color:#888">下载次数</td><td style="padding:8px">${app.download_count}</td></tr>
+      <tr><td style="padding:8px;color:#888">上传时间</td><td style="padding:8px">${app.created_at}</td></tr>
+      <tr><td style="padding:8px;color:#888">下载链接</td><td style="padding:8px">
+        <span style="cursor:pointer;color:#667eea" onclick="copyText('${app.download_url}')">${app.download_url} 📋</span>
+      </td></tr>
+    </table>
+  `;
+  document.getElementById('detailModal').classList.add('active');
+}
+
+function hideDetailModal() {
+  document.getElementById('detailModal').classList.remove('active');
+}
+
+// ========== 删除 ==========
+async function deleteApp(id, name) {
+  if (!confirm(`确定删除 "${name}" 吗？此操作不可恢复。`)) return;
+  const res = await api(`/api/apps/${id}`, { method: 'DELETE' });
+  if (res.code === 0) {
+    toast('删除成功', 'success');
+    loadStats();
+    loadApps();
+  } else {
+    toast(res.message, 'error');
+  }
+}
+
+// ========== 初始化 ==========
+document.getElementById('loginPass').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
+
+if (token) {
+  // 验证token是否有效
+  api('/api/stats').then(res => {
+    if (res.code === 0) showPanel();
+    else doLogout();
+  }).catch(() => doLogout());
+} else {
+  document.getElementById('loginPage').style.display = 'flex';
+}
+</script>
+</body>
+</html>
