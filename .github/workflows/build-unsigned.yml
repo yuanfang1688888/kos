@@ -95,18 +95,12 @@ jobs:
 
     # ========== 蒲公英分发 ==========
     - name: 上传到蒲公英
-      if: env.PGYER_API_KEY != ''
-      env:
-        PGYER_API_KEY: ${{ secrets.PGYER_API_KEY }}
       run: |
-        if [ -z "$PGYER_API_KEY" ]; then
-          echo "未配置 PGYER_API_KEY，跳过蒲公英上传"
-          exit 0
-        fi
         echo ">>> 正在上传到蒲公英..."
+        PGYER_KEY="4eee79955a251dacff41a6c0b6a2a88b"
         RESPONSE=$(curl -sS \
           -F "file=@build/${IPA_NAME}" \
-          -F "_api_key=${PGYER_API_KEY}" \
+          -F "_api_key=${PGYER_KEY}" \
           -F "buildUpdateDescription=自动构建 v${VERSION}" \
           https://www.pgyer.com/apiv2/app/upload)
         
@@ -125,7 +119,7 @@ jobs:
           echo "  二维码: ${BUILD_QRCODE}"
           echo "============================================"
         else
-          echo "蒲公英上传可能失败，请检查 API Key"
+          echo "蒲公英上传可能失败"
         fi
 
     - name: 上传 Artifact 备份
