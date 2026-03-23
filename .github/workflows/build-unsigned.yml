@@ -1,0 +1,84 @@
+name: 免签构建 IPA（无需证书）
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+
+env:
+  PROJECT_NAME: kos
+  SCHEME: kos
+
+jobs:
+  build-unsigned:
+    runs-on: macos-14
+    timeout-minutes: 20
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+
+    - name: 选择 Xcode
+      run: |
+        XCODE_PATH=$(ls -d /Applications/Xcode*.app 2>/dev/null | sort -V | tail -1)
+        sudo xcode-select -s "$XCODE_PATH/Contents/Developer"
+        xcodebuild -version
+
+    - name: 设置版本号
+      run: |
+        BUILD_NUMBER=$(date +%Y%m%d%H%M)
+        echo "BUILD_NUMBER=$BUILD_NUMBER" >> $GITHUB_ENV
+
+    - name: 构建 .app (无签名)
+      run: |
+        xcodebuild build \
+          -project ${PROJECT_NAME}.xcodeproj \
+          -scheme ${SCHEME} \
+          -configuration Release \
+          -sdk iphoneos \
+          -derivedDataPath ./DerivedData \
+          CODE_SIGN_IDENTITY="" \
+          CODE_SIGNING_REQUIRED=NO \
+          CODE_SIGNING_ALLOWED=NO \
+          CURRENT_PROJECT_VERSION=${BUILD_NUMBER} \
+          -quiet
+
+    - name: 打包为 IPA
+      run: |
+        mkdir -p build/Payload
+        APP_PATH=$(find ./DerivedData -name "*.app" -type d | head -1)
+        
+        if [ -z "$APP_PATH" ]; then
+          echo "错误: 找不到 .app 文件"
+          exit 1
+        fi
+        
+        echo "APP 路径: $APP_PATH"
+        cp -r "$APP_PATH" build/Payload/
+        
+        cd build
+        zip -r -q ${PROJECT_NAME}.ipa Payload
+        rm -rf Payload
+        
+        ls -lh *.ipa
+        echo "IPA_PATH=build/${PROJECT_NAME}.ipa" >> $GITHUB_ENV
+
+    - name: 上传 IPA
+      uses: actions/upload-artifact@v4
+      with:
+        name: kos-unsigned-${{ env.BUILD_NUMBER }}
+        path: build/*.ipa
+        retention-days: 90
+
+    - name: 构建完成
+      run: |
+        echo "============================================"
+        echo "  免签 IPA 构建成功!"
+        echo "  版本: 1.0 (${{ env.BUILD_NUMBER }})"
+        echo ""
+        echo "  下载后使用以下工具安装到手机:"
+        echo "  - AltStore: https://altstore.io"
+        echo "  - Sideloadly: https://sideloadly.io"
+        echo "  - TrollStore (支持的 iOS 版本)"
+        echo "  - 爱思助手 / 牛蛙助手"
+        echo "============================================"

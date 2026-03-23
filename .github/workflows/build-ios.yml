@@ -1,0 +1,177 @@
+name: 全自动构建分发 iOS IPA
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+    inputs:
+      distribution:
+        description: '分发平台'
+        required: true
+        default: 'pgyer'
+        type: choice
+        options:
+          - pgyer
+          - testflight
+          - artifact-only
+
+env:
+  PROJECT_NAME: kos
+  SCHEME: kos
+  BUNDLE_ID: com.kos.app
+
+jobs:
+  build-and-distribute:
+    runs-on: macos-14
+    timeout-minutes: 30
+
+    steps:
+    # ========== 1. 环境准备 ==========
+    - name: Checkout 代码
+      uses: actions/checkout@v4
+
+    - name: 选择 Xcode 版本
+      run: |
+        XCODE_PATH=$(ls -d /Applications/Xcode*.app 2>/dev/null | sort -V | tail -1)
+        echo "Using Xcode: $XCODE_PATH"
+        sudo xcode-select -s "$XCODE_PATH/Contents/Developer"
+        xcodebuild -version
+        swift --version
+
+    # ========== 2. 证书与签名 ==========
+    - name: 安装签名证书
+      env:
+        P12_BASE64: ${{ secrets.P12_BASE64 }}
+        P12_PASSWORD: ${{ secrets.P12_PASSWORD }}
+        PROVISION_PROFILE_BASE64: ${{ secrets.PROVISION_PROFILE_BASE64 }}
+        KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
+      run: |
+        KEYCHAIN_PATH=$RUNNER_TEMP/app-signing.keychain-db
+        security create-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
+        security set-keychain-settings -lut 21600 $KEYCHAIN_PATH
+        security unlock-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
+
+        CERT_PATH=$RUNNER_TEMP/build_certificate.p12
+        echo -n "$P12_BASE64" | base64 --decode -o $CERT_PATH
+        security import $CERT_PATH -P "$P12_PASSWORD" -A -t cert -f pkcs12 -k $KEYCHAIN_PATH
+        security set-key-partition-list -S apple-tool:,apple: -k "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
+        security list-keychain -d user -s $KEYCHAIN_PATH
+
+        PP_PATH=$RUNNER_TEMP/build_pp.mobileprovision
+        echo -n "$PROVISION_PROFILE_BASE64" | base64 --decode -o $PP_PATH
+        PP_UUID=$(security cms -D -i $PP_PATH | plutil -extract UUID raw -)
+        mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
+        cp $PP_PATH ~/Library/MobileDevice/Provisioning\ Profiles/${PP_UUID}.mobileprovision
+        echo "PP_UUID=$PP_UUID" >> $GITHUB_ENV
+
+    # ========== 3. 构建 ==========
+    - name: 设置 Build Number
+      run: |
+        BUILD_NUMBER=$(date +%Y%m%d%H%M)
+        echo "BUILD_NUMBER=$BUILD_NUMBER" >> $GITHUB_ENV
+        agvtool new-version -all $BUILD_NUMBER || true
+
+    - name: 构建 Archive
+      run: |
+        xcodebuild archive \
+          -project ${PROJECT_NAME}.xcodeproj \
+          -scheme ${SCHEME} \
+          -configuration Release \
+          -archivePath $RUNNER_TEMP/${PROJECT_NAME}.xcarchive \
+          -destination "generic/platform=iOS" \
+          CODE_SIGN_IDENTITY="Apple Distribution" \
+          CURRENT_PROJECT_VERSION=${BUILD_NUMBER} \
+          -allowProvisioningUpdates \
+          -quiet
+
+    - name: 导出 IPA
+      run: |
+        mkdir -p ./build
+        xcodebuild -exportArchive \
+          -archivePath $RUNNER_TEMP/${PROJECT_NAME}.xcarchive \
+          -exportPath ./build \
+          -exportOptionsPlist ExportOptions.plist \
+          -allowProvisioningUpdates \
+          -quiet
+        mv ./build/${PROJECT_NAME}.ipa ./build/${PROJECT_NAME}-v1.0-${BUILD_NUMBER}.ipa 2>/dev/null || true
+        ls -lh ./build/*.ipa
+        echo "IPA_PATH=$(ls ./build/*.ipa | head -1)" >> $GITHUB_ENV
+
+    # ========== 4. 自动分发 ==========
+    - name: 上传到蒲公英
+      if: github.event.inputs.distribution == 'pgyer' || github.event.inputs.distribution == ''
+      env:
+        PGYER_API_KEY: ${{ secrets.PGYER_API_KEY }}
+      run: |
+        echo ">>> 正在上传到蒲公英..."
+        RESPONSE=$(curl -sS \
+          -F "file=@${IPA_PATH}" \
+          -F "_api_key=${PGYER_API_KEY}" \
+          -F "buildUpdateDescription=自动构建 #${BUILD_NUMBER}" \
+          https://www.pgyer.com/apiv2/app/upload)
+        echo "$RESPONSE" | python3 -m json.tool || echo "$RESPONSE"
+        BUILD_KEY=$(echo "$RESPONSE" | python3 -c "import sys,json;print(json.load(sys.stdin)['data']['buildKey'])" 2>/dev/null || echo "")
+        if [ -n "$BUILD_KEY" ]; then
+          DOWNLOAD_URL="https://www.pgyer.com/${BUILD_KEY}"
+          echo "DOWNLOAD_URL=${DOWNLOAD_URL}" >> $GITHUB_ENV
+          echo "✅ 蒲公英上传成功: ${DOWNLOAD_URL}"
+        fi
+
+    - name: 上传到 TestFlight
+      if: github.event.inputs.distribution == 'testflight'
+      env:
+        ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+        ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+        ASC_PRIVATE_KEY: ${{ secrets.ASC_PRIVATE_KEY }}
+      run: |
+        echo ">>> 正在上传到 TestFlight..."
+        mkdir -p ~/.appstoreconnect/private_keys
+        echo "$ASC_PRIVATE_KEY" > ~/.appstoreconnect/private_keys/AuthKey_${ASC_KEY_ID}.p8
+        xcrun altool --upload-app \
+          --type ios \
+          --file "${IPA_PATH}" \
+          --apiKey "$ASC_KEY_ID" \
+          --apiIssuer "$ASC_ISSUER_ID"
+        echo "DOWNLOAD_URL=TestFlight" >> $GITHUB_ENV
+
+    # ========== 5. 保存产物 ==========
+    - name: 上传 Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: kos-ipa-${{ env.BUILD_NUMBER }}
+        path: ./build/*.ipa
+        retention-days: 90
+
+    # ========== 6. 通知 ==========
+    - name: 发送飞书通知
+      if: success() && env.FEISHU_WEBHOOK != ''
+      env:
+        FEISHU_WEBHOOK: ${{ secrets.FEISHU_WEBHOOK }}
+      run: |
+        curl -sS -X POST "$FEISHU_WEBHOOK" \
+          -H "Content-Type: application/json" \
+          -d "{\"msg_type\":\"interactive\",\"card\":{\"header\":{\"title\":{\"tag\":\"plain_text\",\"content\":\"iOS 构建成功\"},\"template\":\"green\"},\"elements\":[{\"tag\":\"div\",\"text\":{\"tag\":\"lark_md\",\"content\":\"**应用:** kos\\n**版本:** 1.0 (${BUILD_NUMBER})\\n**下载:** ${DOWNLOAD_URL:-未配置分发}\\n**触发:** ${GITHUB_ACTOR}\"}}]}}"
+
+    - name: 发送钉钉通知
+      if: success() && env.DINGTALK_WEBHOOK != ''
+      env:
+        DINGTALK_WEBHOOK: ${{ secrets.DINGTALK_WEBHOOK }}
+      run: |
+        curl -sS -X POST "$DINGTALK_WEBHOOK" \
+          -H "Content-Type: application/json" \
+          -d "{\"msgtype\":\"markdown\",\"markdown\":{\"title\":\"iOS 构建成功\",\"text\":\"## iOS 构建成功\\n- **应用:** kos\\n- **版本:** 1.0 (${BUILD_NUMBER})\\n- **下载:** ${DOWNLOAD_URL:-未配置}\\n- **触发:** ${GITHUB_ACTOR}\"}}"
+
+    - name: 构建摘要
+      if: success()
+      run: |
+        echo "============================================"
+        echo "  构建成功"
+        echo "  版本: 1.0 (${{ env.BUILD_NUMBER }})"
+        echo "  IPA: ${{ env.IPA_PATH }}"
+        echo "  分发: ${{ env.DOWNLOAD_URL }}"
+        echo "============================================"
+
+    # ========== 7. 清理 ==========
+    - name: 清理 Keychain
+      if: always()
+      run: security delete-keychain $RUNNER_TEMP/app-signing.keychain-db 2>/dev/null || true

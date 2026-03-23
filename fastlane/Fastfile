@@ -1,0 +1,114 @@
+default_platform(:ios)
+
+platform :ios do
+
+  # ========== 全自动构建 + 蒲公英分发 ==========
+  desc "全自动: 构建 → 签名 → 蒲公英分发"
+  lane :auto do
+    build_adhoc
+    pgyer_upload
+  end
+
+  desc "构建 Ad-Hoc IPA"
+  lane :build_adhoc do
+    increment_build_number(
+      build_number: Time.now.strftime("%Y%m%d%H%M")
+    )
+
+    build_app(
+      scheme: "kos",
+      workspace: nil,
+      project: "kos.xcodeproj",
+      configuration: "Release",
+      export_method: "ad-hoc",
+      output_directory: "./build",
+      output_name: "kos.ipa",
+      clean: true,
+      include_bitcode: false,
+      export_options: {
+        signingStyle: "automatic",
+        stripSwiftSymbols: true,
+        thinning: "<none>"
+      }
+    )
+  end
+
+  desc "上传到蒲公英"
+  lane :pgyer_upload do
+    api_key = ENV["PGYER_API_KEY"]
+    if api_key.nil? || api_key.empty?
+      UI.user_error!("请设置环境变量 PGYER_API_KEY")
+    end
+
+    ipa_path = lane_context[SharedValues::IPA_OUTPUT_PATH] || "./build/kos.ipa"
+    
+    sh("curl -sS -F 'file=@#{ipa_path}' -F '_api_key=#{api_key}' -F 'buildUpdateDescription=fastlane 自动构建' https://www.pgyer.com/apiv2/app/upload")
+    
+    UI.success("蒲公英上传完成!")
+  end
+
+  desc "构建 Development IPA"
+  lane :build_dev do
+    build_app(
+      scheme: "kos",
+      project: "kos.xcodeproj",
+      configuration: "Debug",
+      export_method: "development",
+      output_directory: "./build",
+      output_name: "kos-dev.ipa",
+      clean: true,
+      include_bitcode: false
+    )
+  end
+
+  desc "全自动: 构建 → TestFlight"
+  lane :auto_testflight do
+    build_app(
+      scheme: "kos",
+      project: "kos.xcodeproj",
+      configuration: "Release",
+      export_method: "app-store",
+      output_directory: "./build",
+      output_name: "kos.ipa",
+      clean: true,
+      include_bitcode: false
+    )
+    upload_to_testflight(
+      skip_waiting_for_build_processing: true
+    )
+  end
+
+  # ========== 免签构建（无需证书）==========
+  desc "免签构建: 生成未签名 IPA，配合 AltStore/Sideloadly 安装"
+  lane :unsigned do
+    # 使用 xcodebuild 直接构建，跳过签名
+    sh("rm -rf ../DerivedData ../build/Payload")
+    sh("mkdir -p ../build")
+
+    sh(
+      "xcodebuild build " \
+      "-project ../kos.xcodeproj " \
+      "-scheme kos " \
+      "-configuration Release " \
+      "-sdk iphoneos " \
+      "-derivedDataPath ../DerivedData " \
+      'CODE_SIGN_IDENTITY="" ' \
+      "CODE_SIGNING_REQUIRED=NO " \
+      "CODE_SIGNING_ALLOWED=NO " \
+      "-quiet"
+    )
+
+    # 打包为 IPA
+    sh("mkdir -p ../build/Payload")
+    app_path = Dir["../DerivedData/**/Build/Products/Release-iphoneos/*.app"].first
+    UI.user_error!("构建失败，未找到 .app") if app_path.nil?
+
+    sh("cp -r '#{app_path}' ../build/Payload/")
+    sh("cd ../build && zip -r -q kos-unsigned.ipa Payload && rm -rf Payload")
+    sh("rm -rf ../DerivedData")
+
+    UI.success("免签 IPA 已生成: build/kos-unsigned.ipa")
+    UI.important("使用 AltStore / Sideloadly / 爱思助手安装到手机")
+  end
+
+end
